@@ -1,6 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.WebSockets;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using HomeAssistant.AppStarter.Extensions;
 using HomeAssistant.AppStarter.Models;
@@ -9,7 +13,6 @@ using HomeAssistant.AppStarter.Models.WebsocketCommands;
 using HomeAssistant.AppStarter.RawModels;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using WebSocketSharp;
 
 
 namespace HomeAssistant.AppStarter
@@ -28,8 +31,8 @@ namespace HomeAssistant.AppStarter
         public event EventHandler<LogEventArgs> ErrorOutput;
 
         // Fields
-        private readonly string _hassWebsocketUri;
-        private readonly string _apiPasswordQuery;
+        private readonly Uri _hassWebsocketUri;
+        private readonly string _accessToken;
         private bool _inited;
         /// <summary>
         /// TODO: This lib needs to be .NET Core
@@ -41,19 +44,15 @@ namespace HomeAssistant.AppStarter
         private Dictionary<string, List<IHassApp>> _apps;
         private bool _started;
 
-        // Ctor
-        /// <param name="hassWebsocketUri">Example: 'ws://192.168.0.168:8123/api/websocket' </param>
-        public HassAppsRunner(string hassWebsocketUri)
-        {
-            _hassWebsocketUri = hassWebsocketUri;
-        }
+        private CancellationTokenSource _cts = new CancellationTokenSource();
+
         // Ctor
         /// <param name="hassWebsocketUri">Example: 'ws://192.168.0.168:8123/api/websocket' </param>
         /// <param name="apiPassword"></param>
-        public HassAppsRunner(string hassWebsocketUri, string apiPassword)
+        public HassAppsRunner(Uri hassWebsocketUri, string accessToken)
         {
             _hassWebsocketUri = hassWebsocketUri;
-            _apiPasswordQuery = $"?api_password={apiPassword}";
+            _accessToken = accessToken;
         }
 
         // Public 
@@ -61,29 +60,42 @@ namespace HomeAssistant.AppStarter
         /// <summary>
         /// Start a websocket and connect, subscribe to hass state_changed events
         /// </summary>
-        public void Start()
+        public async Task Start(CancellationToken ct)
         {
             if (!_inited)
                 Initialize();
             if (_started)
                 throw new InvalidOperationException($"{nameof(HassAppsRunner)} already started!");
 
-            if(string.IsNullOrEmpty(_apiPasswordQuery))
-            {
-                _ws = new WebSocket(_hassWebsocketUri);
-            }
-            else
-            {
-                _ws = new WebSocket($"{_hassWebsocketUri}{_apiPasswordQuery}");
-            }
-            _ws.Log.Output += OnWebsocketLog;
-            _ws.OnError += OnError;
-            _ws.OnMessage += OnMessage;
-            _ws.Connect();
+            var client = new ClientWebSocket();
+            await client.ConnectAsync(_hassWebsocketUri, ct);
 
-            SubscribeToEvents();
+            _ws = client;
+
+            StartReceive(_cts.Token);
+
+            //SubscribeToEvents();
 
             _started = true;
+        }
+
+        private async void StartReceive(CancellationToken ct)
+        {
+            var buffer = WebSocket.CreateClientBuffer(1024 * 16, 1024 * 16);
+            while (_ws.State == WebSocketState.Open)
+            {
+                var result = await _ws.ReceiveAsync(buffer, ct);
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                    return;
+                if (result.MessageType == WebSocketMessageType.Binary)
+                    continue;
+
+                // TODO: check result.EndOfMessage here for big messages
+
+                var msg = Encoding.UTF8.GetString(buffer.Array, buffer.Offset, result.Count);
+                await OnMessage(msg, ct);
+            }
         }
 
         /// <summary>
@@ -91,13 +103,15 @@ namespace HomeAssistant.AppStarter
         /// </summary>
         public void Stop()
         {
-            if (_ws == null)
+            var ws = Interlocked.Exchange(ref _ws, null);
+
+            if (ws == null)
                 return;
 
-            if (_ws.ReadyState == WebSocketState.Connecting || _ws.ReadyState == WebSocketState.Open)
-                _ws.Close();
+            _cts.Cancel();
 
-            _ws = null;
+            ws.Dispose();
+
             _started = false;
         }
 
@@ -152,38 +166,63 @@ namespace HomeAssistant.AppStarter
             return types;
         }
 
-        private void SubscribeToEvents()
+
+        private async Task SubscribeToEvents(CancellationToken ct)
         {
-            var cmd1 = new SubscribeToEventsCommand(EventType.state_changed, 1);
-            var cmd2 = new SubscribeToEventsCommand(EventType.click, 2);
-            _ws.Send(JsonConvert.SerializeObject(cmd1));
-            _ws.Send(JsonConvert.SerializeObject(cmd2));
+            await SendWs(new SubscribeToEventsCommand(EventType.state_changed), ct);
+            await SendWs(new SubscribeToEventsCommand(EventType.click), ct);
         }
 
-        private void OnMessage(object sender, MessageEventArgs e)
+        private static readonly JsonSerializer _serializer = new JsonSerializer();
+        private static readonly Encoding _utf8 = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+
+        private async Task SendWs<T>(T msg, CancellationToken ct)
         {
-            if (!e.IsText && !e.Data.IsValidJson())
+            using(var stream = new MemoryStream())
+            using(var writer = new StreamWriter(stream, _utf8))
+            using (var jsonWriter = new JsonTextWriter(writer))
+            {
+                _serializer.Serialize(jsonWriter, msg);
+                jsonWriter.Flush();
+                writer.Flush();
+                var bytes = stream.ToArray();
+                var buffer = new ArraySegment<byte>(bytes);
+                await _ws.SendAsync(buffer, WebSocketMessageType.Text, true, ct);
+            }
+        }
+
+        private async Task OnMessage(string msg, CancellationToken ct)
+        {
+            if (!msg.IsValidJson())
                 return;
 
-            var json = JToken.Parse(e.Data);
+            var json = JToken.Parse(msg);
 
             if (json.IsAuthMessage())
             {
-                InfoOutput?.Invoke(this, new LogEventArgs { Text = $"Authorize message: {e.Data.ToPrettyJson()}" });
+                InfoOutput?.Invoke(this, new LogEventArgs { Text = "Authorization requested. Sending access token..." });
+                await SendWs(new AuthCommand(_accessToken), ct);
+                return;
+            }
+
+            if (json.IsAuthOk())
+            {
+                InfoOutput?.Invoke(this, new LogEventArgs { Text = "Authorization completed, subscribing to events..." });
+                await SubscribeToEvents(ct);
                 return;
             }
 
             if (json.IsResult())
             {
                 // Isn't an event, log and exit.
-                DebugOutput?.Invoke(this, new LogEventArgs { Text = $"Result message: {e.Data.ToPrettyJson()}" });
+                DebugOutput?.Invoke(this, new LogEventArgs { Text = $"Result message: {msg.ToPrettyJson()}" });
                 return;
             }
 
             if (!json.IsEvent())
             {
                 // Isn't an event! And event's are what we're working with.
-                WarnOutput?.Invoke(this, new LogEventArgs { Text = $"Unsupported message (not an 'event'): {e.Data.ToPrettyJson()}" });
+                WarnOutput?.Invoke(this, new LogEventArgs { Text = $"Unsupported message (not an 'event'): {msg.ToPrettyJson()}" });
                 return;
             }
 
@@ -199,7 +238,7 @@ namespace HomeAssistant.AppStarter
             }
 
             // Found matched apps! Log and determine which type
-            InfoOutput?.Invoke(this, new LogEventArgs { Text = e.Data.ToPrettyJson() });
+            InfoOutput?.Invoke(this, new LogEventArgs { Text = msg.ToPrettyJson() });
             var eventData = new EventData { EntityId = entId };
 
             if (json.IsClickEvent())
@@ -221,40 +260,36 @@ namespace HomeAssistant.AppStarter
                 if (!json.HasNewState())
                     return; // Irrelevant event, we need new states only ..
 
-                var rawGraph = JsonConvert.DeserializeObject<HassEventRawModel>(e.Data);
-                var stateChange = new StateChanged();
-                stateChange.NewState = rawGraph.@event.data.new_state?.state;
-                stateChange.OldState = rawGraph.@event.data.old_state?.state;
-                stateChange.Attributes = JsonConvert.DeserializeObject<Dictionary<string, object>>((rawGraph.@event.data.new_state ?? rawGraph.@event.data.old_state ?? new StateRaw()).attributes.ToString());
+                var rawGraph = JsonConvert.DeserializeObject<HassEventRawModel>(msg);
+                var stateChange = new StateChanged
+                {
+                    NewState = rawGraph.@event.data.new_state?.state,
+                    OldState = rawGraph.@event.data.old_state?.state,
+                    Attributes = JsonConvert.DeserializeObject<Dictionary<string, object>>(
+                        (rawGraph.@event.data.new_state ?? rawGraph.@event.data.old_state ?? new StateRaw()).attributes
+                        .ToString())
+                };
                 eventData.StateChangeData = stateChange;
             }
 
             foreach (var hassApp in matchedApps.Where(p => p.IsExecuting == false))
             {
                 hassApp.IsExecuting = true;
-                hassApp
-                    .ExecuteAsync(eventData, e.Data)
-                    .ContinueWith(p =>
-                    {
-                        // Only on exception: Raise event..
-                        var ex = p.Exception?.InnerExceptions?.FirstOrDefault() ?? p.Exception;
-                        ErrorOutput?.Invoke(this, new LogEventArgs { Text = ex?.Message, Exception = ex });
-                    }, TaskContinuationOptions.OnlyOnFaulted)
-                    .ContinueWith(p =>
-                    {
-                        hassApp.IsExecuting = false;
-                    }, TaskContinuationOptions.None);
+
+                try
+                {
+                    await hassApp.ExecuteAsync(eventData, msg);
+                }
+                catch (Exception ex)
+                {
+                    ErrorOutput?.Invoke(this, new LogEventArgs {Text = ex?.Message, Exception = ex});
+                }
+                finally
+                {
+                    hassApp.IsExecuting = false;
+                }
             }
         }
 
-        private void OnError(object sender, ErrorEventArgs e)
-        {
-            ErrorOutput?.Invoke(this, new LogEventArgs { Text = e.Message, Exception = e.Exception });
-        }
-
-        private void OnWebsocketLog(LogData data, string arg2)
-        {
-            TraceOutput?.Invoke(this, new LogEventArgs { Text = data.Message + " [arg2]" });
-        }
     }
 }

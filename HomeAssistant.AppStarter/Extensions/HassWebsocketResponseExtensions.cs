@@ -9,7 +9,17 @@ namespace HomeAssistant.AppStarter.Extensions
         {
             if (source["type"] == null)
                 return false;
-            if ( ((string)source["type"]).StartsWith("auth"))
+            if ( (string)source["type"] == "auth_required")
+                return true;
+
+            return false;
+        }
+
+        internal static bool IsAuthOk(this JToken source)
+        {
+            if (source["type"] == null)
+                return false;
+            if ((string)source["type"] == "auth_ok")
                 return true;
 
             return false;

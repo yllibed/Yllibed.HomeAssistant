@@ -1,23 +1,18 @@
 ﻿using System;
+using Newtonsoft.Json;
 
 namespace HomeAssistant.AppStarter.Models.WebsocketCommands
 {
-    public class SubscribeToEventsCommand
+    public class SubscribeToEventsCommand : CommandBase
     {
-        public int id { get;  }
-        public string type { get; } = "subscribe_events";
-        public string event_type { get; }
+        [JsonProperty("event_type")]
+        public string EventType { get; }
 
-        public SubscribeToEventsCommand(EventType eventType, int id)
+        public SubscribeToEventsCommand(EventType eventType)
         {
-            this.event_type = Enum.GetName(typeof(EventType), eventType);
-            this.id = id;
+            EventType = Enum.GetName(typeof(EventType), eventType);
         }
-    }
 
-    public enum EventType
-    {
-        state_changed,
-        click
+        public override string Type => "subscribe_events";
     }
 }
