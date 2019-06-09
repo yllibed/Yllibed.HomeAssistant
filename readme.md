@@ -9,6 +9,8 @@
 * Changed the name and the layout of the sources
 * New deployment process
 
+[![Build Status](https://dev.azure.com/yllibed/HomeAssistantFramework/_apis/build/status/yllibed.Yllibed.HomeAssistant?branchName=master)](https://dev.azure.com/yllibed/HomeAssistantFramework/_build/latest?definitionId=3&branchName=master) [![Nuget](https://img.shields.io/nuget/dt/Yllibed.HomeAssistantFramework.svg?label=nuget.org)](https://www.nuget.org/packages/Yllibed.HomeAssistantFramework)
+
 > # **WARNING**
 > The following documentation hasn't been updated yet for new version. Stay tuned for updated documentation!
 
