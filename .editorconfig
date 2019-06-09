@@ -7,7 +7,7 @@ indent_style = tab
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[*.csproj]
+[{*.csproj, *.yml, *.yaml, *.md}]
 indent_style = space
 tab_width = 2
 indent_size = 2

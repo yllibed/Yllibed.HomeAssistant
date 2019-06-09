@@ -8,6 +8,7 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build and doc", "Build and doc", "{9DAF48EB-4FF6-4BE3-96FF-3F5EEDBFE4AC}"
 	ProjectSection(SolutionItems) = preProject
 		..\.editorconfig = ..\.editorconfig
+		..\azure-pipelines.yml = ..\azure-pipelines.yml
 		..\readme.md = ..\readme.md
 	EndProjectSection
 EndProject
