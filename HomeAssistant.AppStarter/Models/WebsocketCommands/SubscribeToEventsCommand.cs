@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace HomeAssistant.AppStarter.Models.WebsocketCommands
 {
-    public class SubscribeToEventsCommand : CommandBase
+    internal class SubscribeToEventsCommand : CommandBase
     {
         [JsonProperty("event_type")]
         public string EventType { get; }

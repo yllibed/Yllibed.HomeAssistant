@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using HomeAssistant.AppStarter.Extensions;
 using HomeAssistant.AppStarter.Models;
+using HomeAssistant.AppStarter.Models.Apps;
 using HomeAssistant.AppStarter.Models.Events;
 using HomeAssistant.AppStarter.Models.WebsocketCommands;
 using HomeAssistant.AppStarter.RawModels;
@@ -41,7 +43,7 @@ namespace HomeAssistant.AppStarter
 
         // Props
         public HashSet<string> EncounteredEntityIdsWithoutSubscription { get; set; } = new HashSet<string>();
-        private Dictionary<string, List<IHassApp>> _apps;
+        private AppRegistration[] _apps;
         private bool _started;
 
         private CancellationTokenSource _cts = new CancellationTokenSource();
@@ -63,9 +65,14 @@ namespace HomeAssistant.AppStarter
         public async Task Start(CancellationToken ct)
         {
             if (!_inited)
+            {
                 Initialize();
+            }
+
             if (_started)
+            {
                 throw new InvalidOperationException($"{nameof(HassAppsRunner)} already started!");
+            }
 
             var client = new ClientWebSocket();
             await client.ConnectAsync(_hassWebsocketUri, ct);
@@ -87,14 +94,19 @@ namespace HomeAssistant.AppStarter
                 var result = await _ws.ReceiveAsync(buffer, ct);
 
                 if (result.MessageType == WebSocketMessageType.Close)
+                {
                     return;
+                }
+
                 if (result.MessageType == WebSocketMessageType.Binary)
+                {
                     continue;
+                }
 
                 // TODO: check result.EndOfMessage here for big messages
 
                 var msg = Encoding.UTF8.GetString(buffer.Array, buffer.Offset, result.Count);
-                await OnMessage(msg, ct);
+                var t = OnMessage(msg, ct);
             }
         }
 
@@ -106,7 +118,9 @@ namespace HomeAssistant.AppStarter
             var ws = Interlocked.Exchange(ref _ws, null);
 
             if (ws == null)
+            {
                 return;
+            }
 
             _cts.Cancel();
 
@@ -125,36 +139,15 @@ namespace HomeAssistant.AppStarter
         {
             var apps = ScanAssemblyForHassApps();
 
-            _apps = new Dictionary<string, List<IHassApp>>();
-
-            foreach (var app in apps)
-            {
-                // TODO: Replace this to support ctor injection.
-                var instance = (IHassApp)Activator.CreateInstance(app);
-
-                // Clean up the filter
-                instance.TriggeredByEntities = instance.TriggeredByEntities.ToLowerInvariant().Replace(" ", "");
-
-                // Empty or null not allowed
-                if (string.IsNullOrEmpty(instance.TriggeredByEntities))
-                    throw new ArgumentNullException($"{nameof(IHassApp.TriggeredByEntities)} must not be null or empty!");
-
-                // Support for comma-delimited entity id's
-                var entityIdentifiers = instance.TriggeredByEntities.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-                foreach (var entId in entityIdentifiers)
-                {
-                    if (!_apps.ContainsKey(entId))
-                    {
-                        _apps.Add(entId, new List<IHassApp>());
-                    }
-                    _apps[entId].Add(instance);
-                }
-            }
+            _apps = apps
+                .Select(AppRegistration.TryCreate)
+                .Where(a => a != null)
+                .ToArray();
 
             _inited = true;
         }
 
-        private IEnumerable<Type> ScanAssemblyForHassApps()
+        private Type[] ScanAssemblyForHassApps()
         {
             var type = typeof(IHassApp);
             var types = AppDomain.CurrentDomain.GetAssemblies()
@@ -163,7 +156,7 @@ namespace HomeAssistant.AppStarter
                     .Where(p => p.IsClass)
                 ;
 
-            return types;
+            return types.ToArray();
         }
 
 
@@ -193,103 +186,110 @@ namespace HomeAssistant.AppStarter
 
         private async Task OnMessage(string msg, CancellationToken ct)
         {
-            if (!msg.IsValidJson())
-                return;
-
-            var json = JToken.Parse(msg);
-
-            if (json.IsAuthMessage())
+            if (!msg.IsValidJson(out var json))
             {
-                InfoOutput?.Invoke(this, new LogEventArgs { Text = "Authorization requested. Sending access token..." });
-                await SendWs(new AuthCommand(_accessToken), ct);
                 return;
             }
 
-            if (json.IsAuthOk())
+            var message = new WebSocketMessage(json);
+
+            switch (message.MessageType)
             {
-                InfoOutput?.Invoke(this, new LogEventArgs { Text = "Authorization completed, subscribing to events..." });
-                await SubscribeToEvents(ct);
-                return;
+                case "auth_required":
+                    LogInfo("Authorization requested. Sending access token...");
+                    await SendWs(new AuthCommand(_accessToken), ct);
+                    return;
+
+                case "auth_ok":
+                    LogInfo("Authorization completed, subscribing to events...");
+                    await SubscribeToEvents(ct);
+                    return;
+
+                case "result":
+                    // Isn't an event, log and exit.
+                    LogDebug($"Result message: {msg.ToPrettyJson()}");
+                    return;
+
+                case "event":
+                    break; // continue processing
+
+                default:
+                {
+                    // Isn't an event! And event's are what we're working with.
+                    LogWarn($"Unsupported message (not an 'event'): {msg.ToPrettyJson()}");
+                    return;
+                }
             }
 
-            if (json.IsResult())
-            {
-                // Isn't an event, log and exit.
-                DebugOutput?.Invoke(this, new LogEventArgs { Text = $"Result message: {msg.ToPrettyJson()}" });
-                return;
-            }
+            var entId = message.EventEntityId;
+            var matchedApps = _apps
+                .Where(a => a.MatchEntity(entId))
+                .ToArray();
 
-            if (!json.IsEvent())
-            {
-                // Isn't an event! And event's are what we're working with.
-                WarnOutput?.Invoke(this, new LogEventArgs { Text = $"Unsupported message (not an 'event'): {msg.ToPrettyJson()}" });
-                return;
-            }
-
-            var entId = json.ExtractEntityId().ToLowerInvariant();
-            var matchedApps = _apps.FindApps(entId);
-
-            if (matchedApps.Count == 0)
+            if (!matchedApps.Any())
             {
                 // No matched apps, log and exit.
                 if (EncounteredEntityIdsWithoutSubscription.Add(entId))
-                    TraceOutput?.Invoke(this, new LogEventArgs { Text = $"First time encounter of message with an EntityId that we're not listening on: {entId}" });
+                {
+                    LogTrace($"First time encounter of message with an EntityId that we're not listening on: {entId}");
+                }
+
                 return;
             }
 
             // Found matched apps! Log and determine which type
-            InfoOutput?.Invoke(this, new LogEventArgs { Text = msg.ToPrettyJson() });
-            var eventData = new EventData { EntityId = entId };
+            LogInfo(msg.ToPrettyJson());
+            Click clickData = null;
+            StateChanged stateChangedData = null;
 
-            if (json.IsClickEvent())
+            var eventType = message.EventType;
+            switch (eventType)
             {
-                eventData.ClickData = new Click { ClickType = (string)json["event"]["data"]["click_type"] };
+                case "click":
+                {
+                    clickData = new Click { ClickType = (string)json["event"]["data"]["click_type"] };
+                    break;
+                }
+
+                case "state_changed":
+                {
+                    //entity_boolean doesn't have a "last_triggered" attribute.
+                    //if (!entId.Contains("input_boolean."))
+                    //{
+                    //    if (!message.HasNewStateWithLastTriggered)
+                    //    {
+                    //        return; // Irrelevant event, we need new states that has "last time triggered" otherwise it might be an event provoked by reloading Hass. Unsure about this.
+                    //    }
+                    //}
+                    if (!message.IsTheMostRelevantStateChangeEvent)
+                    {
+                        return; // Is most probably a 'duped' event, throw it away ..
+                    }
+
+                    if (!message.HasNewState)
+                    {
+                        return; // Irrelevant event, we need new states only ..
+                    }
+
+                    stateChangedData = message.DeserializeStateChanged();
+                    break;
+                }
             }
 
-            if (json.IsStateChangeEvent())
+            var eventData = new EventData(entId, stateChangedData, clickData, msg);
+
+            foreach (var hassApp in matchedApps)
             {
-                //entity_boolean doesn't have a "last_triggered" attribute.
-                if (!entId.Contains("input_boolean."))
-                {
-                    if (!json.HasNewStateWithLastTriggered())
-                        return; // Irrelevant event, we need new states that has "last time triggered" otherwise it might be an event provoked by reloading Hass. Unsure about this.
-
-                }
-                if (!json.IsTheMostRelevantStateChangeMessage())
-                    return; // Is most probably a 'duped' event, throw it away ..
-                if (!json.HasNewState())
-                    return; // Irrelevant event, we need new states only ..
-
-                var rawGraph = JsonConvert.DeserializeObject<HassEventRawModel>(msg);
-                var stateChange = new StateChanged
-                {
-                    NewState = rawGraph.@event.data.new_state?.state,
-                    OldState = rawGraph.@event.data.old_state?.state,
-                    Attributes = JsonConvert.DeserializeObject<Dictionary<string, object>>(
-                        (rawGraph.@event.data.new_state ?? rawGraph.@event.data.old_state ?? new StateRaw()).attributes
-                        .ToString())
-                };
-                eventData.StateChangeData = stateChange;
-            }
-
-            foreach (var hassApp in matchedApps.Where(p => p.IsExecuting == false))
-            {
-                hassApp.IsExecuting = true;
-
-                try
-                {
-                    await hassApp.ExecuteAsync(eventData, msg);
-                }
-                catch (Exception ex)
-                {
-                    ErrorOutput?.Invoke(this, new LogEventArgs {Text = ex?.Message, Exception = ex});
-                }
-                finally
-                {
-                    hassApp.IsExecuting = false;
-                }
+                hassApp.DispatchEvent(eventData);
             }
         }
 
+        private void LogTrace(string log) => TraceOutput?.Invoke(this, new LogEventArgs { Text = log });
+
+        private void LogWarn(string log) => WarnOutput?.Invoke(this, new LogEventArgs { Text = log });
+
+        private void LogDebug(string log) => DebugOutput?.Invoke(this, new LogEventArgs { Text = log });
+
+        private void LogInfo(string log) => InfoOutput?.Invoke(this, new LogEventArgs {Text = log});
     }
 }

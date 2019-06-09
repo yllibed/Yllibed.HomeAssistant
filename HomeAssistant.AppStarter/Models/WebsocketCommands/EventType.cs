@@ -1,6 +1,6 @@
 ﻿namespace HomeAssistant.AppStarter.Models.WebsocketCommands
 {
-    public enum EventType
+    internal enum EventType
     {
         state_changed,
         click

@@ -2,7 +2,7 @@
 
 namespace HomeAssistant.AppStarter.Models.WebsocketCommands
 {
-    public class AuthCommand
+    internal class AuthCommand
     {
         [JsonProperty("type")]
         public string Type => "auth";

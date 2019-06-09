@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace HomeAssistant.AppStarter.Models.WebsocketCommands
 {
-    public abstract class CommandBase
+    internal abstract class CommandBase
     {
         private static long _nextId = 0;
 

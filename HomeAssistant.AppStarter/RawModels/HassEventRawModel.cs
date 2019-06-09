@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 
 namespace HomeAssistant.AppStarter.RawModels
 {
@@ -9,7 +10,7 @@ namespace HomeAssistant.AppStarter.RawModels
     internal class HassEventRawModel
     {
         [JsonProperty("event")]
-        internal EventRaw @event { get; set; }
+        internal EventRaw eventNode { get; set; }
         [JsonProperty("type")]
         internal string type { get; set; }
         [JsonProperty("id")]
@@ -43,7 +44,7 @@ namespace HomeAssistant.AppStarter.RawModels
         [JsonProperty("last_changed")]
         internal DateTime? last_changed { get; set; }
         [JsonProperty("attributes")]
-        internal object attributes { get; set; }
+        internal IReadOnlyDictionary<string, object> attributes { get; set; }
         [JsonProperty("entity_id")]
         internal string entity_id { get; set; }
         [JsonProperty("state")]

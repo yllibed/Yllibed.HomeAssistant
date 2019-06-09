@@ -2,8 +2,18 @@
 {
     public class EventData
     {
-        public string EntityId { get; set; }
-        public Click ClickData { get; set; }
-        public StateChanged StateChangeData { get; set; }
+        public EventData(string entityId, StateChanged stateChangeData, Click clickData, string originalMessage)
+        {
+            EntityId = entityId;
+            StateChangeData = stateChangeData;
+            ClickData = clickData;
+            OriginalMessage = originalMessage;
+        }
+
+        public string EntityId { get; }
+        public Click ClickData { get; }
+        public StateChanged StateChangeData { get; }
+
+        public string OriginalMessage { get; }
     }
 }

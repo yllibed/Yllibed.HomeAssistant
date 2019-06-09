@@ -21,7 +21,10 @@ namespace HomeAssistant.AppStarter.Helpers
         {
             var newBrightness = currentBrightness += 25;
             if (newBrightness > 255)
+            {
                 newBrightness = 255;
+            }
+
             return newBrightness;
         }
 
@@ -29,7 +32,10 @@ namespace HomeAssistant.AppStarter.Helpers
         {
             var newBrightness = currentBrightness -= 25;
             if (newBrightness < 0)
+            {
                 newBrightness = 0;
+            }
+
             return newBrightness;
         }
 
@@ -39,7 +45,9 @@ namespace HomeAssistant.AppStarter.Helpers
             var jsonString = await _hassApiProxy.GetHassEntityStateAsJson(entity_id);
             var jsonToken = JToken.Parse(jsonString);
             if ((string) jsonToken["state"] == "off")
+            {
                 return 0;
+            }
 
             return (int)jsonToken["attributes"]["brightness"];
         }

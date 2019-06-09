@@ -7,7 +7,7 @@ namespace HomeAssistant.AppStarter.Extensions
 {
     internal static class StringJsonExtensions
     {
-        internal static bool IsValidJson(this string text)
+        internal static bool IsValidJson(this string text, out JToken json)
         {
             text = text.Trim();
             if ((text.StartsWith("{") && text.EndsWith("}")) || //For object
@@ -15,23 +15,26 @@ namespace HomeAssistant.AppStarter.Extensions
             {
                 try
                 {
-                    var obj = JToken.Parse(text);
+                    json = JToken.Parse(text);
                     return true;
                 }
                 catch (JsonReaderException jex)
                 {
                     //Exception in parsing json
                     Console.WriteLine(jex.Message);
+                    json = null;
                     return false;
                 }
                 catch (Exception ex) //some other exception
                 {
                     Console.WriteLine(ex.ToString());
+                    json = null;
                     return false;
                 }
             }
             else
             {
+                json = null;
                 return false;
             }
         }
