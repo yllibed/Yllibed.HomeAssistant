@@ -2,17 +2,17 @@
 
 namespace Yllibed.HomeAssistantFramework.Models.WebsocketCommands
 {
-    internal class AuthCommand
-    {
-        [JsonProperty("type")]
-        public string Type => "auth";
+	internal class AuthCommand
+	{
+		[JsonProperty("type")]
+		public string Type => "auth";
 
-        [JsonProperty("access_token")]
-        public string Token { get; }
+		[JsonProperty("access_token")]
+		public string Token { get; }
 
-        public AuthCommand(string token)
-        {
-            Token = token;
-        }
-    }
+		public AuthCommand(string token)
+		{
+			Token = token;
+		}
+	}
 }
