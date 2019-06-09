@@ -1,8 +1,8 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
-using HomeAssistant.AppStarter.Models.Events;
+using Yllibed.HomeAssistantFramework.Models.Events;
 
-namespace HomeAssistant.AppStarter
+namespace Yllibed.HomeAssistantFramework
 {
     public interface IHassApp
     {

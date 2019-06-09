@@ -1,4 +1,4 @@
-﻿namespace HomeAssistant.AppStarter.Models.Events
+﻿namespace Yllibed.HomeAssistantFramework.Models.Events
 {
     public class EventData
     {

@@ -1,4 +1,4 @@
-﻿namespace HomeAssistant.AppStarter.Models.WebsocketCommands
+﻿namespace Yllibed.HomeAssistantFramework.Models.WebsocketCommands
 {
     internal enum EventType
     {

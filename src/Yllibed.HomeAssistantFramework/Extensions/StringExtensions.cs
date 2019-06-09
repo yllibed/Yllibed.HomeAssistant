@@ -1,6 +1,6 @@
 ﻿using System.Text.RegularExpressions;
 
-namespace HomeAssistant.AppStarter.Extensions
+namespace Yllibed.HomeAssistantFramework.Extensions
 {
     internal static class StringExtensions
     {

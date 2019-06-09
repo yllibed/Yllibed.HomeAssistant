@@ -1,4 +1,16 @@
-﻿# Hass AppStarter
+﻿# Yllibed HomeAssistant Framework
+
+## Fork Status
+
+**This project is a fork from Hass rille111's AppStarter <https://github.com/rille111/HomeAssistant.AppStarter>**. Few changes has been done on the original project:
+
+* Updated to use `System.Net.WebSockets`
+* Refactoring of the code
+* Changed the name and the layout of the sources
+* New deployment process
+
+> # **WARNING**
+> The following documentation hasn't been updated yet for new version. Stay tuned for updated documentation!
 
 ## Purpose
 

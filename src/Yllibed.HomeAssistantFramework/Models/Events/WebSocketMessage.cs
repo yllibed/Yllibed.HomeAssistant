@@ -1,10 +1,6 @@
-﻿using System.Collections.Generic;
-using HomeAssistant.AppStarter.Models.Events;
-using HomeAssistant.AppStarter.RawModels;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+﻿using Newtonsoft.Json.Linq;
 
-namespace HomeAssistant.AppStarter.Models
+namespace Yllibed.HomeAssistantFramework.Models.Events
 {
     internal class WebSocketMessage
     {

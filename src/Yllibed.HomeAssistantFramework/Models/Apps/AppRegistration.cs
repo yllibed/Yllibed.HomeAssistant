@@ -1,9 +1,9 @@
 ﻿using System;
 using System.Linq;
 using System.Text.RegularExpressions;
-using HomeAssistant.AppStarter.Extensions;
+using Yllibed.HomeAssistantFramework.Extensions;
 
-namespace HomeAssistant.AppStarter.Models.Apps
+namespace Yllibed.HomeAssistantFramework.Models.Apps
 {
     internal partial class AppRegistration
     {

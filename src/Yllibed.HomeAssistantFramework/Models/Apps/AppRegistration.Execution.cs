@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Threading;
-using System.Threading.Tasks;
-using HomeAssistant.AppStarter.Extensions;
-using HomeAssistant.AppStarter.Models.Events;
+using Yllibed.HomeAssistantFramework.Extensions;
+using Yllibed.HomeAssistantFramework.Models.Events;
 
-namespace HomeAssistant.AppStarter.Models.Apps
+namespace Yllibed.HomeAssistantFramework.Models.Apps
 {
     partial class AppRegistration
     {

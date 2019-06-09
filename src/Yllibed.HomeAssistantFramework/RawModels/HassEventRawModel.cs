@@ -1,8 +1,8 @@
-﻿using Newtonsoft.Json;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
 
-namespace HomeAssistant.AppStarter.RawModels
+namespace Yllibed.HomeAssistantFramework.RawModels
 {
     /// <summary>
     /// Deserialized as-is from Hass

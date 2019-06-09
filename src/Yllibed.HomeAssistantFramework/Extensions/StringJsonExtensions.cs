@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 // ReSharper disable once CheckNamespace
-namespace HomeAssistant.AppStarter.Extensions
+namespace Yllibed.HomeAssistantFramework.Extensions
 {
     internal static class StringJsonExtensions
     {

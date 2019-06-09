@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -7,17 +6,14 @@ using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using HomeAssistant.AppStarter.Extensions;
-using HomeAssistant.AppStarter.Models;
-using HomeAssistant.AppStarter.Models.Apps;
-using HomeAssistant.AppStarter.Models.Events;
-using HomeAssistant.AppStarter.Models.WebsocketCommands;
-using HomeAssistant.AppStarter.RawModels;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using Yllibed.HomeAssistantFramework.Extensions;
+using Yllibed.HomeAssistantFramework.Models;
+using Yllibed.HomeAssistantFramework.Models.Apps;
+using Yllibed.HomeAssistantFramework.Models.Events;
+using Yllibed.HomeAssistantFramework.Models.WebsocketCommands;
 
-
-namespace HomeAssistant.AppStarter
+namespace Yllibed.HomeAssistantFramework
 {
     // TODO: Implement IDisposable to call Stop()
     /// <summary>

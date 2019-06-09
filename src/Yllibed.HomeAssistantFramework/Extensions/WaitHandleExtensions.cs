@@ -2,7 +2,7 @@
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace HomeAssistant.AppStarter.Extensions
+namespace Yllibed.HomeAssistantFramework.Extensions
 {
     public static class WaitHandleExtensions
     {

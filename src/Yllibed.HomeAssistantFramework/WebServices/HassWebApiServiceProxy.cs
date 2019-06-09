@@ -2,7 +2,7 @@
 using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace HomeAssistant.AppStarter.WebServices
+namespace Yllibed.HomeAssistantFramework.WebServices
 {
     public class HassWebApiServiceProxy : IHassWebApiServiceProxy
     {

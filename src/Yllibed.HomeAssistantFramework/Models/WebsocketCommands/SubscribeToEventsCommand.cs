@@ -1,7 +1,7 @@
 ﻿using System;
 using Newtonsoft.Json;
 
-namespace HomeAssistant.AppStarter.Models.WebsocketCommands
+namespace Yllibed.HomeAssistantFramework.Models.WebsocketCommands
 {
     internal class SubscribeToEventsCommand : CommandBase
     {

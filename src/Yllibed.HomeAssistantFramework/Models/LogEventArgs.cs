@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace HomeAssistant.AppStarter.Models
+namespace Yllibed.HomeAssistantFramework.Models
 {
     /// <summary>
     /// <see cref="HassAppsRunner"/> outputs this as an object to all Log events

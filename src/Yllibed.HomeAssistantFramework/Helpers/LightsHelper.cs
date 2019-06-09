@@ -1,8 +1,8 @@
 ﻿using System.Threading.Tasks;
-using HomeAssistant.AppStarter.WebServices;
 using Newtonsoft.Json.Linq;
+using Yllibed.HomeAssistantFramework.WebServices;
 
-namespace HomeAssistant.AppStarter.Helpers
+namespace Yllibed.HomeAssistantFramework.Helpers
 {
     /// <summary>
     /// Maybe this helper should be in the HassAppsRunner, for ease of use for consumers?

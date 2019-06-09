@@ -1,9 +1,8 @@
 ﻿using System.Collections.Generic;
-using System.Linq;
-using HomeAssistant.AppStarter.RawModels;
 using Newtonsoft.Json.Linq;
+using Yllibed.HomeAssistantFramework.RawModels;
 
-namespace HomeAssistant.AppStarter.Models.Events
+namespace Yllibed.HomeAssistantFramework.Models.Events
 {
     public class StateChanged
     {
